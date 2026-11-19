@@ -1,6 +1,7 @@
 package contabancaria;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
@@ -98,6 +99,33 @@ class ContaTest {
     //    - Depósito em conta inativa lança IllegalStateException
     // =======================================================
 
+    @Test
+    void depositar_ValorValido_AtualizaSaldo() {
+        var conta = new Conta("Maria", 100);
+
+        conta.depositar(50);
+
+        assertEquals(150, conta.getSaldo());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0", "-10"})
+    void depositar_ValorNaoPositivo_LancaExcecao(double valor) {
+        var conta = new Conta("Maria", 100);
+
+        assertThrows(IllegalArgumentException.class, () -> conta.depositar(valor));
+        assertEquals(100, conta.getSaldo());
+    }
+
+    @Test
+    void depositar_ContaEncerrada_LancaExcecaoESaldoPreservado() {
+        var conta = new Conta("Maria");
+        conta.encerrar();
+
+        assertThrows(IllegalStateException.class, () -> conta.depositar(50));
+        assertFalse(conta.isAtiva());
+        assertEquals(0, conta.getSaldo());
+    }
 
     // =======================================================
     //  Testes para sacar
@@ -109,6 +137,42 @@ class ContaTest {
     //    - Saque em conta inativa lança IllegalStateException
     // =======================================================
 
+    @Test
+    void sacar_ValorValido_AtualizaSaldo() {
+        var conta = new Conta("Maria", 100);
+
+        conta.sacar(40);
+
+        assertEquals(60, conta.getSaldo());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0", "-10"})
+    void sacar_ValorNaoPositivo_LancaExcecao(double valor) {
+        var conta = new Conta("Maria", 100);
+
+        assertThrows(IllegalArgumentException.class, () -> conta.sacar(valor));
+        assertEquals(100, conta.getSaldo());
+    }
+
+    @Test
+    void sacar_ValorAcimaDoSaldo_LancaExcecaoESaldoPreservado() {
+        var conta = new Conta("Maria", 100);
+
+        assertThrows(IllegalStateException.class, () -> conta.sacar(101));
+        assertEquals(100, conta.getSaldo());
+    }
+
+    @Test
+    void sacar_ContaEncerrada_LancaExcecaoESaldoPreservado() {
+        var conta = new Conta("Maria", 100);
+        conta.sacar(100);
+        conta.encerrar();
+
+        assertThrows(IllegalStateException.class, () -> conta.sacar(0));
+        assertFalse(conta.isAtiva());
+        assertEquals(0, conta.getSaldo());
+    }
 
     // =======================================================
     //  Testes para transferir
@@ -120,6 +184,61 @@ class ContaTest {
     //    - Transferência com conta destino inativa lança exceção
     // =======================================================
 
+    @Test
+    void transferir_ValorValido_AtualizaAmbasAsContas() {
+        var origem = new Conta("Maria", 200);
+        var destino = new Conta("João", 100);
+
+        origem.transferir(destino, 50);
+
+        assertEquals(150, origem.getSaldo());
+        assertEquals(150, destino.getSaldo());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0", "-10"})
+    void transferir_ValorNaoPositivo_LancaExcecaoESaldosPreservados(double valor) {
+        var origem = new Conta("Maria", 200);
+        var destino = new Conta("João", 100);
+
+        assertThrows(IllegalArgumentException.class, () -> origem.transferir(destino, valor));
+        assertEquals(200, origem.getSaldo());
+        assertEquals(100, destino.getSaldo());
+    }
+
+    @Test
+    void transferir_SaldoInsuficiente_LancaExcecaoESaldosPreservados() {
+        var origem = new Conta("Maria", 200);
+        var destino = new Conta("João", 100);
+
+        assertThrows(IllegalStateException.class, () -> origem.transferir(destino, 201));
+        assertEquals(200, origem.getSaldo());
+        assertEquals(100, destino.getSaldo());
+    }
+
+    @Test
+    void transferir_ContaOrigemInativa_LancaExcecaoESaldosPreservados() {
+        var origem = new Conta("Maria");
+        origem.encerrar();
+        var destino = new Conta("João", 100);
+
+        assertThrows(IllegalStateException.class, () -> origem.transferir(destino, 0));
+        assertFalse(origem.isAtiva());
+        assertEquals(0, origem.getSaldo());
+        assertEquals(100, destino.getSaldo());
+    }
+
+    @Test
+    void transferir_ContaDestinoInativa_LancaExcecaoESaldosPreservados() {
+        var origem = new Conta("Maria", 200);
+        var destino = new Conta("João");
+        destino.encerrar();
+
+        assertThrows(IllegalStateException.class, () -> origem.transferir(destino, 0));
+        assertEquals(200, origem.getSaldo());
+        assertFalse(destino.isAtiva());
+        assertEquals(0, destino.getSaldo());
+    }
 
     // =======================================================
     //  Testes para encerrar
@@ -129,5 +248,33 @@ class ContaTest {
     //    - Encerrar conta já inativa lança IllegalStateException
     //    - Conta encerrada tem isAtiva() == false
     // =======================================================
+
+    @Test
+    void encerrar_ComSaldoZero_TornaContaInativa() {
+        var conta = new Conta("Maria");
+
+        conta.encerrar();
+
+        assertFalse(conta.isAtiva());
+    }
+
+    @Test
+    void encerrar_ComSaldoPositivo_LancaExcecaoESaldoPreservado() {
+        var conta = new Conta("Maria", 1);
+
+        assertThrows(IllegalStateException.class, conta::encerrar);
+        assertTrue(conta.isAtiva());
+        assertEquals(1, conta.getSaldo());
+    }
+
+    @Test
+    void encerrar_ContaJaInativa_LancaExcecaoEPermaneceInativa() {
+        var conta = new Conta("Maria");
+        conta.encerrar();
+
+        assertThrows(IllegalStateException.class, conta::encerrar);
+        assertFalse(conta.isAtiva());
+        assertEquals(0, conta.getSaldo());
+    }
 
 }
